@@ -85,6 +85,8 @@ function dtelk_export_to_elk() {
 
     $post_types = ['contacts', 'groups', 'dt_appointments', 'dt_tasks'];
     $lines = [];
+    $ignored_meta_prefixes = ['contact'];
+    $export_timestamp = gmdate('c');
 
     foreach ($post_types as $type) {
         $posts = get_posts([
@@ -97,6 +99,14 @@ function dtelk_export_to_elk() {
             $meta = get_post_meta($post->ID);
             $flat_meta = [];
             foreach ($meta as $key => $value) {
+                $skip = false;
+                foreach ($ignored_meta_prefixes as $prefix) {
+                    if (strpos($key, $prefix) === 0) {
+                        $skip = true;
+                        break;
+                    }
+                }
+                if ($skip) continue;
                 $flat_meta[$key] = maybe_unserialize($value[0]);
             }
 
@@ -108,6 +118,7 @@ function dtelk_export_to_elk() {
                 'author' => $post->post_author,
                 'date_created' => $post->post_date_gmt,
                 'date_modified' => $post->post_modified_gmt,
+                '@timestamp' => $export_timestamp,
                 'meta' => $flat_meta
             ];
 
