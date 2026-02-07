@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Disciple.Tools to ELK Exporter
  * Description: Exports Disciple.Tools data (contacts, groups, appointments, tasks) to ELK via Bulk API.
- * Version: 1.3
+ * Version: 1.32
  * Author: Jon Ralls
  */
 
@@ -74,6 +74,13 @@ function dtelk_handle_manual_export() {
 }
 add_action('admin_init', 'dtelk_handle_manual_export');
 
+function dtelk_stringify_values($data) {
+    if (is_array($data)) {
+        return array_map('dtelk_stringify_values', $data);
+    }
+    return is_scalar($data) ? (string) $data : $data;
+}
+
 function dtelk_export_to_elk() {
     $endpoint = rtrim(get_option('dtelk_elk_endpoint'), '/') . '/_bulk';
     $api_key = get_option('dtelk_api_key');
@@ -107,7 +114,7 @@ function dtelk_export_to_elk() {
                     }
                 }
                 if ($skip) continue;
-                $flat_meta[$key] = maybe_unserialize($value[0]);
+                $flat_meta[$key] = dtelk_stringify_values(maybe_unserialize($value[0]));
             }
 
             $doc = [
@@ -151,9 +158,23 @@ function dtelk_export_to_elk() {
     }
 
     $code = wp_remote_retrieve_response_code($response);
+    $response_body = wp_remote_retrieve_body($response);
+
     if ($code >= 400) {
-        $error_body = wp_remote_retrieve_body($response);
-        return new WP_Error('elk_error', "ELK API Error (HTTP $code): " . $error_body);
+        return new WP_Error('elk_error', "ELK API Error (HTTP $code) at $endpoint: " . $response_body);
+    }
+
+    $result = json_decode($response_body, true);
+    if (!empty($result['errors'])) {
+        $first_error = '';
+        foreach ($result['items'] as $item) {
+            $action = reset($item);
+            if (!empty($action['error'])) {
+                $first_error = json_encode($action['error']);
+                break;
+            }
+        }
+        return new WP_Error('elk_bulk_error', "ELK Bulk API reported errors. First error: " . $first_error);
     }
 
     return true;
