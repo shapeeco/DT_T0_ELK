@@ -12,9 +12,11 @@ function dtelk_register_settings() {
     add_option('dtelk_elk_endpoint', '');
     add_option('dtelk_api_key', '');
     add_option('dtelk_index_name', '');
+    add_option('dtelk_team_title', '');
     register_setting('dtelk_options_group', 'dtelk_elk_endpoint');
     register_setting('dtelk_options_group', 'dtelk_api_key');
     register_setting('dtelk_options_group', 'dtelk_index_name');
+    register_setting('dtelk_options_group', 'dtelk_team_title');
 }
 add_action('admin_init', 'dtelk_register_settings');
 
@@ -42,6 +44,10 @@ function dtelk_exporter_admin_page() {
                 <tr valign="top">
                     <th scope="row">Index Name</th>
                     <td><input type="text" name="dtelk_index_name" value="<?php echo esc_attr(get_option('dtelk_index_name')); ?>" size="40"></td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Team Title</th>
+                    <td><input type="text" name="dtelk_team_title" value="<?php echo esc_attr(get_option('dtelk_team_title')); ?>" size="40"></td>
                 </tr>
             </table>
             <?php submit_button(); ?>
@@ -94,6 +100,7 @@ function dtelk_export_to_elk() {
     $lines = [];
     $ignored_meta_prefixes = ['contact'];
     $export_timestamp = gmdate('c');
+    $team_title = get_option('dtelk_team_title');
 
     foreach ($post_types as $type) {
         $posts = get_posts([
@@ -126,6 +133,7 @@ function dtelk_export_to_elk() {
                 'date_created' => $post->post_date_gmt,
                 'date_modified' => $post->post_modified_gmt,
                 '@timestamp' => $export_timestamp,
+                'team_title' => $team_title,
                 'meta' => $flat_meta
             ];
 
