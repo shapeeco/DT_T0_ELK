@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Disciple.Tools to ELK Exporter
  * Description: Exports Disciple.Tools data (contacts, groups, appointments, tasks) to ELK via Bulk API.
- * Version: 1.32
+ * Version: 1.33
  * Author: Jon Ralls
  */
 
@@ -112,7 +112,11 @@ function dtelk_export_to_elk() {
         foreach ($posts as $post) {
             $meta = get_post_meta($post->ID);
             $flat_meta = [];
+            $contact_address = null;
             foreach ($meta as $key => $value) {
+                if (preg_match('/^contact_address_\w{3}$/', $key)) {
+                    $contact_address = dtelk_stringify_values(maybe_unserialize($value[0]));
+                }
                 $skip = false;
                 foreach ($ignored_meta_prefixes as $prefix) {
                     if (strpos($key, $prefix) === 0) {
@@ -122,6 +126,9 @@ function dtelk_export_to_elk() {
                 }
                 if ($skip) continue;
                 $flat_meta[$key] = dtelk_stringify_values(maybe_unserialize($value[0]));
+            }
+            if ($contact_address !== null) {
+                $flat_meta['contact_address'] = $contact_address;
             }
 
             $doc = [
