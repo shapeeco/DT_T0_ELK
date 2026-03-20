@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Disciple.Tools to ELK Exporter
  * Description: Exports Disciple.Tools data (contacts, groups, appointments, tasks) to ELK via Bulk API.
- * Version: 1.34
+ * Version: 1.35
  * Author: Jon Ralls
  */
 
@@ -138,6 +138,19 @@ function dtelk_export_to_elk() {
                 $flat_meta['first_contact_date'] = $post->post_date_gmt;
             }
 
+            // Add epoch-millisecond date fields so ES can run date_histogram on DT data.
+            // All _ms fields use epoch_millis — compatible with ES date type format "epoch_millis".
+            if (!empty($flat_meta['first_contact_date'])) {
+                $ts = strtotime($flat_meta['first_contact_date'] . ' UTC');
+                if ($ts !== false) $flat_meta['first_contact_date_ms'] = $ts * 1000;
+            }
+            if (!empty($flat_meta['start_date']) && is_numeric($flat_meta['start_date'])) {
+                $flat_meta['start_date_ms'] = (int)$flat_meta['start_date'] * 1000;
+            }
+            if (!empty($flat_meta['church_start_date']) && is_numeric($flat_meta['church_start_date'])) {
+                $flat_meta['church_start_date_ms'] = (int)$flat_meta['church_start_date'] * 1000;
+            }
+
             $doc = [
                 'ID' => $post->ID,
                 'post_type' => $post->post_type,
@@ -150,6 +163,9 @@ function dtelk_export_to_elk() {
                 'team_title' => $team_title,
                 'meta' => $flat_meta
             ];
+
+            $ts = strtotime($post->post_date_gmt . ' UTC');
+            if ($ts !== false) $doc['date_created_ms'] = $ts * 1000;
 
             $lines[] = json_encode(['index' => ['_index' => $index, '_id' => $post->ID]]);
             $lines[] = json_encode($doc);
