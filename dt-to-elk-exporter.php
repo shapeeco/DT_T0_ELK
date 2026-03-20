@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Disciple.Tools to ELK Exporter
  * Description: Exports Disciple.Tools data (contacts, groups, appointments, tasks) to ELK via Bulk API.
- * Version: 1.35
+ * Version: 1.36
  * Author: Jon Ralls
  */
 
@@ -87,6 +87,52 @@ function dtelk_stringify_values($data) {
     return is_scalar($data) ? (string) $data : $data;
 }
 
+/**
+ * Ensure the index exists with the required date field mappings.
+ * Safe to call on every export — adding mappings to an existing index is a no-op for
+ * fields that already exist, and ES rejects type changes rather than silently corrupting data.
+ */
+function dtelk_ensure_index_mappings($base_url, $api_key, $index) {
+    $headers = [
+        'Content-Type'  => 'application/json',
+        'Authorization' => 'ApiKey ' . $api_key,
+    ];
+    $ssl_args = ['sslverify' => false, 'headers' => $headers, 'timeout' => 15];
+
+    $index_url = rtrim($base_url, '/') . '/' . $index;
+
+    // Check whether the index exists.
+    $head = wp_remote_head($index_url, $ssl_args);
+    $exists = !is_wp_error($head) && wp_remote_retrieve_response_code($head) === 200;
+
+    $mappings = [
+        'properties' => [
+            'date_created_ms' => ['type' => 'date', 'format' => 'epoch_millis'],
+            'meta'            => [
+                'properties' => [
+                    'first_contact_date_ms' => ['type' => 'date', 'format' => 'epoch_millis'],
+                    'start_date_ms'         => ['type' => 'date', 'format' => 'epoch_millis'],
+                    'church_start_date_ms'  => ['type' => 'date', 'format' => 'epoch_millis'],
+                ],
+            ],
+        ],
+    ];
+
+    if (!$exists) {
+        // Create the index with mappings pre-applied so auto-mapping never runs first.
+        wp_remote_request($index_url, array_merge($ssl_args, [
+            'method' => 'PUT',
+            'body'   => json_encode(['mappings' => $mappings]),
+        ]));
+    } else {
+        // Index exists — add any missing fields (safe; ES ignores already-correct fields).
+        wp_remote_request($index_url . '/_mapping', array_merge($ssl_args, [
+            'method' => 'PUT',
+            'body'   => json_encode($mappings),
+        ]));
+    }
+}
+
 function dtelk_export_to_elk() {
     $endpoint = rtrim(get_option('dtelk_elk_endpoint'), '/') . '/_bulk';
     $api_key = get_option('dtelk_api_key');
@@ -95,6 +141,10 @@ function dtelk_export_to_elk() {
     if (!$endpoint || !$api_key || !$index) {
         return new WP_Error('missing_config', 'ELK settings (Endpoint, API Key, Index Name) are missing.');
     }
+
+    // Derive the base ES URL (strip the /_bulk suffix added above).
+    $base_url = substr($endpoint, 0, -strlen('/_bulk'));
+    dtelk_ensure_index_mappings($base_url, $api_key, $index);
 
     $post_types = ['contacts', 'groups', 'dt_appointments', 'dt_tasks'];
     $lines = [];
