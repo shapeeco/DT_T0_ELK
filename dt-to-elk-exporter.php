@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Disciple.Tools to ELK Exporter
  * Description: Exports Disciple.Tools data (contacts, groups, appointments, tasks) to ELK via Bulk API.
- * Version: 1.36
+ * Version: 1.37
  * Author: Jon Ralls
  */
 
@@ -107,6 +107,7 @@ function dtelk_ensure_index_mappings($base_url, $api_key, $index) {
 
     $mappings = [
         'properties' => [
+            'team_title'      => ['type' => 'keyword'],
             'date_created_ms' => ['type' => 'date', 'format' => 'epoch_millis'],
             'meta'            => [
                 'properties' => [
