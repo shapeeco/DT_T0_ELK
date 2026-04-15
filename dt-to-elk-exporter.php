@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Disciple.Tools to ELK Exporter
  * Description: Exports Disciple.Tools data (contacts, groups, appointments, tasks) to ELK via Bulk API.
- * Version: 1.37
+ * Version: 1.39
  * Author: Jon Ralls
  */
 
@@ -107,11 +107,13 @@ function dtelk_ensure_index_mappings($base_url, $api_key, $index) {
 
     $mappings = [
         'properties' => [
-            'team_title'      => ['type' => 'keyword'],
-            'date_created_ms' => ['type' => 'date', 'format' => 'epoch_millis'],
+            'team_title'       => ['type' => 'keyword'],
+            'date_created_ms'  => ['type' => 'date', 'format' => 'epoch_millis'],
+            'date_modified_ms' => ['type' => 'date', 'format' => 'epoch_millis'],
             'meta'            => [
                 'properties' => [
                     'first_contact_date_ms' => ['type' => 'date', 'format' => 'epoch_millis'],
+                    'baptism_date_ms'       => ['type' => 'date', 'format' => 'epoch_millis'],
                     'start_date_ms'         => ['type' => 'date', 'format' => 'epoch_millis'],
                     'church_start_date_ms'  => ['type' => 'date', 'format' => 'epoch_millis'],
                 ],
@@ -198,6 +200,9 @@ function dtelk_export_to_elk() {
             if (!empty($flat_meta['start_date']) && is_numeric($flat_meta['start_date'])) {
                 $flat_meta['start_date_ms'] = (int)$flat_meta['start_date'] * 1000;
             }
+            if (!empty($flat_meta['baptism_date']) && is_numeric($flat_meta['baptism_date'])) {
+                $flat_meta['baptism_date_ms'] = (int)$flat_meta['baptism_date'] * 1000;
+            }
             if (!empty($flat_meta['church_start_date']) && is_numeric($flat_meta['church_start_date'])) {
                 $flat_meta['church_start_date_ms'] = (int)$flat_meta['church_start_date'] * 1000;
             }
@@ -217,6 +222,9 @@ function dtelk_export_to_elk() {
 
             $ts = strtotime($post->post_date_gmt . ' UTC');
             if ($ts !== false) $doc['date_created_ms'] = $ts * 1000;
+
+            $ts_mod = strtotime($post->post_modified_gmt . ' UTC');
+            if ($ts_mod !== false) $doc['date_modified_ms'] = $ts_mod * 1000;
 
             $lines[] = json_encode(['index' => ['_index' => $index, '_id' => $post->ID]]);
             $lines[] = json_encode($doc);
